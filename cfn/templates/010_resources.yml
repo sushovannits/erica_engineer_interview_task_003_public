@@ -1,13 +1,6 @@
-
 AWSTemplateFormatVersion: "2010-09-09"
-Description: | 
-  
-ERICA engineer interview task
-
+Description: ERICA engineer interview task
 Resources:
-
-  # Network 
-
   Vpc:
     Type: AWS::EC2::VPC
     Properties:
@@ -74,6 +67,17 @@ Resources:
             - ec2.amazonaws.com
           Action:
           - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ec2:DescribeVolumes'
+                  - 'ec2:CreateVolume'
+                Resource: '*'
       ManagedPolicyArns:
         - "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 
@@ -95,6 +99,10 @@ Resources:
           IpProtocol: "tcp"
           FromPort: "80"
           ToPort: "80"
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 0.0.0.0/0
 
   Instance:
     DependsOn: VPCGatewayAttachment
@@ -103,18 +111,24 @@ Resources:
       InstanceType: "t3.micro"
       ImageId: ami-00671cd019674e67c
       IamInstanceProfile: !Ref InstanceProfile
+      KeyName: unsw-test
       BlockDeviceMappings: 
         - DeviceName: "/dev/xvdm"
           Ebs: 
             VolumeType: "gp2"
             VolumeSize: "5"
             Encrypted: true
-      SecurityGroupIds:
-        - !Ref SecurityGroup
-      SubnetId: !Ref SubnetPublic
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeleteOnTermination: true
+          SubnetId: !Ref SubnetPublic
+          DeviceIndex: 0
+          GroupSet:
+          - !Ref SecurityGroup
       UserData:
         Fn::Base64: !Sub |
-          #!/bin/bash
+         #!/bin/bash
+         /usr/local/bin/cfn-init --verbose --stack=${AWS::StackName} --region=${AWS::Region} --resource=Instance
           export HOST_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
           export MACHINE_NAME=$(tr '.' '-' <<<$HOST_IP)
           export AWS_INSTANCE_ID=$(curl -s http://169.254.169.254/latest/meta-data/instance-id)
@@ -123,6 +137,8 @@ Resources:
           echo "export AWS_DEFAULT_REGION=${!AWS_REGION}" >> /etc/bashrc
 
           yum update
+          yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+          yum -y install epel-release
           yum install -y nginx
           
           systemctl enable nginx
@@ -144,13 +160,10 @@ Resources:
               mkfs -t ext4 /dev/xvdm
           fi
           mkdir -p /data
- 
           # Persist the volumes in /etc/fstab so it gets mounted again
           echo '/dev/xvdm /data ext4 defaults,nofail 0 2' >> /etc/fstab
- 
           # Mount all volumes
           mount -a
-
           /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource=Instance --region ${AWS::Region}
     CreationPolicy:
       ResourceSignal:
