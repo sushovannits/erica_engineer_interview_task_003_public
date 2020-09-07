@@ -1,5 +1,71 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: ERICA engineer interview task
+Parameters:
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: String
+    Default: unsw-test
+    MinLength: '1'
+    MaxLength: '64'
+    AllowedPattern: "[-_ a-zA-Z0-9]*"
+    ConstraintDescription: Can contain only alphanumeric characters, spaces, dashes
+      and underscores.
+  InstanceType:
+    Description: EC2 instance type
+    Type: String
+    Default: t1.micro
+    AllowedValues:
+    - t1.micro
+    - m1.small
+    - m1.medium
+    - m1.large
+    - m1.xlarge
+    - m2.xlarge
+    - m2.2xlarge
+    - m2.4xlarge
+    - c1.medium
+    - c1.xlarge
+    - cc1.4xlarge
+    - cc2.8xlarge
+    - cg1.4xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+  VolumeSize:
+    Description: Volume size for the Jenkins workspace.
+    Type: Number
+    Default: '60'
+Mappings:
+  AWSInstanceType2Arch:
+    t1.micro:
+      Arch: '64'
+    m1.small:
+      Arch: '64'
+    m1.medium:
+      Arch: '64'
+    m1.large:
+      Arch: '64'
+    m1.xlarge:
+      Arch: '64'
+    m2.xlarge:
+      Arch: '64'
+    m2.2xlarge:
+      Arch: '64'
+    m2.4xlarge:
+      Arch: '64'
+    c1.medium:
+      Arch: '64'
+    c1.xlarge:
+      Arch: '64'
+    cc1.4xlarge:
+      Arch: 64HVM
+    cc2.8xlarge:
+      Arch: 64HVM
+    cg1.4xlarge:
+      Arch: 64HVM
+  AWSRegionArch2AMI:
+    ap-southeast-2:
+      '64': ami-00671cd019674e67c
+    ap-south-1:
+      '64': ami-07db4adf15d7719d1
 Resources:
   Vpc:
     Type: AWS::EC2::VPC
@@ -23,7 +89,7 @@ Resources:
   SubnetPublic:
     Type: "AWS::EC2::Subnet"
     Properties:
-      AvailabilityZone: "ap-southeast-2a"
+      AvailabilityZone: !Sub "${AWS::Region}a"
       CidrBlock: 192.168.0.0/26
       VpcId: !Ref Vpc
 
@@ -108,10 +174,19 @@ Resources:
     DependsOn: VPCGatewayAttachment
     Type: AWS::EC2::Instance
     Properties:
+      ImageId:
+        Fn::FindInMap:
+        - AWSRegionArch2AMI
+        - Ref: AWS::Region
+        - Fn::FindInMap:
+          - AWSInstanceType2Arch
+          - Ref: InstanceType
+          - Arch
+      InstanceType:
+        Ref: InstanceType
       InstanceType: "t3.micro"
-      ImageId: ami-00671cd019674e67c
       IamInstanceProfile: !Ref InstanceProfile
-      KeyName: unsw-test
+      KeyName: !Ref KeyName
       BlockDeviceMappings: 
         - DeviceName: "/dev/xvdm"
           Ebs: 

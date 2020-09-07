@@ -40,3 +40,10 @@ A working solution will result in two published websites (one in Sydney region, 
 ## Clean up!
 
 Don't forget to clean up any AWS resources!
+
+## Steps to solve:
+- First deployment of stack failed as resource signal was not received in time
+- Enabled ssh and a greater timeout for signal
+- Enabled public IP via a network interface
+- SSHed and found from cloud-init-output logs that instancerole did not have permission for describe volumes
+- Fixed above but found nginx was not running, had to configure the epel-repo correctly for amazon linux 2 amis.

@@ -20,18 +20,30 @@ then
   CONTAINER_ENGINE="docker"
 fi
 
+declare -a RegionArray=("ap-southeast-2" "ap-south-1")
 stage=$1
 stackname=unsw-interview-task-003
+regionOutput=()
+for region in ${RegionArray[@]}; do
+  echo "Deploying for region: ${region}"
+  export AWS_REGION=${region}
+  export AWS_DEFAULT_REGION=${region}
+  stackup="${CONTAINER_ENGINE} run --rm \
+    -v `pwd`:/cwd:Z \
+    -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN \
+    -e AWS_DEFAULT_REGION -e AWS_REGION \
+    realestate/stackup:latest"
 
-stackup="${CONTAINER_ENGINE} run --rm \
-  -v `pwd`:/cwd:Z \
-  -e AWS_ACCESS_KEY_ID -e AWS_SECRET_ACCESS_KEY -e AWS_SESSION_TOKEN \
-  -e AWS_DEFAULT_REGION -e AWS_REGION \
-  realestate/stackup:latest"
+  command="$stackup ${stackname} up -t cfn/templates/010_resources.yml \
+    --tags cfn/tags.yml -o KeyName=unsw-test"
+  eval ${command}
 
-command="$stackup ${stackname} up -t cfn/templates/010_resources.yml \
-  --tags cfn/tags.yml"
-eval ${command}
+  command="$stackup ${stackname} outputs"
+  regionOutput+=( $(eval ${command}) )
 
-command="$stackup ${stackname} outputs"
-eval ${command}
+done
+for output in "${regionOutput[@]}"
+do
+   echo "${output}"
+done
+
